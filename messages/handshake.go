@@ -1,10 +1,11 @@
 package messages
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/akaladarshi/bit-connect/common"
 	"github.com/akaladarshi/bit-connect/configs"
 )
 
@@ -12,9 +13,8 @@ const (
 	version                 = "version"
 	fullNodeServices uint64 = 1
 
-	defaultProtocolVersion = 70016
-	defaultStartHeight     = 1
-	defaultAgent           = ""
+	defaultLastHeight = 0
+	defaultAgent      = ""
 )
 
 type HandshakeMsg struct {
@@ -25,8 +25,8 @@ type HandshakeMsg struct {
 	AddrFrom        NetAddr
 	Nonce           uint64
 	UserAgent       string
-	Height          int32
-	Relay           bool
+	LastHeight      int32
+	Relay           bool // we can remove this field as it is not used.
 }
 
 // CreateHandshakeMsg creates a new version message
@@ -42,44 +42,67 @@ func CreateHandshakeMsg(cfg *configs.HandshakeConfig) (Message, error) {
 	}
 
 	return &HandshakeMsg{
-		ProtocolVersion: defaultProtocolVersion,
+		ProtocolVersion: common.LatestProtocolVersion,
 		Services:        fullNodeServices,
 		Timestamp:       time.Unix(time.Now().Unix(), 0).Unix(),
 		AddrRecv:        addrRecv,
 		AddrFrom:        addrSender,
 		Nonce:           generateNonce(),
 		UserAgent:       defaultAgent,
-		Height:          defaultStartHeight,
+		LastHeight:      defaultLastHeight,
 		Relay:           false,
 	}, nil
 }
 
-func (h *HandshakeMsg) Encode() ([]byte, error) {
-	var buf bytes.Buffer
-
-	err := EncodeData(&buf, h.ProtocolVersion, h.Services, h.Timestamp)
+func (h *HandshakeMsg) Encode(w io.Writer) error {
+	err := EncodeData(w, h.ProtocolVersion, h.Services, h.Timestamp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode handshake data: %w", err)
+		return err
 	}
 
-	err = h.AddrRecv.Encode(&buf)
+	err = h.AddrRecv.Encode(w)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode receiver address: %w", err)
+		return fmt.Errorf("failed to encode receiver address: %w", err)
 	}
 
-	err = h.AddrFrom.Encode(&buf)
+	err = h.AddrFrom.Encode(w)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode sender address: %w", err)
+		return fmt.Errorf("failed to encode sender address: %w", err)
 	}
 
-	err = EncodeData(&buf, h.Nonce, h.UserAgent, h.Height)
-	return buf.Bytes(), nil
-}
+	err = EncodeData(w, h.Nonce, h.UserAgent, h.LastHeight, h.Relay)
+	if err != nil {
+		return err
+	}
 
-func (h *HandshakeMsg) Decode(data []byte) error {
 	return nil
 }
 
-func (h *HandshakeMsg) Command() string {
+func (h *HandshakeMsg) Decode(r io.Reader) error {
+	err := DecodeData(r, &h.ProtocolVersion, &h.Services, &h.Timestamp)
+	if err != nil {
+		return err
+	}
+
+	senderAddr := &NetAddr{}
+	err = senderAddr.Decode(r)
+	if err != nil {
+		return fmt.Errorf("failed to decode sender address: %w", err)
+	}
+
+	h.AddrFrom = *senderAddr
+
+	receiverAddr := &NetAddr{}
+	err = receiverAddr.Decode(r)
+	if err != nil {
+		return fmt.Errorf("failed to decode receiver address: %w", err)
+	}
+
+	h.AddrRecv = *receiverAddr
+
+	return DecodeData(r, &h.Nonce, &h.UserAgent, &h.LastHeight, &h.Relay)
+}
+
+func (h *HandshakeMsg) GetCommand() string {
 	return version
 }

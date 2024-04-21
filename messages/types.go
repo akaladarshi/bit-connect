@@ -44,3 +44,21 @@ func (n *NetAddr) Encode(w io.Writer) error {
 
 	return nil
 }
+
+func (n *NetAddr) Decode(r io.Reader) error {
+	err := DecodeData(r, &n.Services, &n.IP)
+	if err != nil {
+		return err
+	}
+
+	var portBuf = make([]byte, 2)
+	_, err = io.ReadFull(r, portBuf[:])
+	if err != nil {
+		return err
+	}
+
+	// big endian is used for port
+	n.Port = binary.BigEndian.Uint16(portBuf)
+
+	return nil
+}

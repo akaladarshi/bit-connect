@@ -12,7 +12,7 @@ import (
 func NewRunCmd() *cobra.Command {
 	var runCmd = &cobra.Command{
 		Use:   "run",
-		Short: "run p2p handlers client",
+		Short: "run p2p handshake client",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nodeAddress := cmd.Flag(nodeAddressFlag).Value.String()
 			if nodeAddress == "" {

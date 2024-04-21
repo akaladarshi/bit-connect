@@ -1,7 +1,9 @@
 package handlers
 
-import "io"
+import (
+	"net"
+)
 
 type Handler interface {
-	Handle(conn io.ReadWriteCloser) error
+	Handle(conn net.Conn) error
 }
