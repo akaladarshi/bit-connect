@@ -1,4 +1,4 @@
-package messages
+package message
 
 import (
 	"bytes"
@@ -14,16 +14,16 @@ const (
 	MaxHeaderSize = 24
 )
 
-// Header represents the header of a message
-type Header struct {
+// header represents the header of a message
+type header struct {
 	Magic       uint32            // network name (4 bytes)
 	Command     [CommandSize]byte // message name (12 bytes)
 	PayloadSize uint32            // size of payload (4 bytes)
 	Checksum    [4]byte           // checksum of payload (4 bytes)
 }
 
-// NewHeader creates a new header message
-func NewHeader(network uint32, cmd string, payloadSize uint32, checksum [4]byte) (*Header, error) {
+// newHeader creates a new header message
+func newHeader(network uint32, cmd string, payload []byte) (*header, error) {
 	if len(cmd) > CommandSize {
 		return nil, fmt.Errorf("command size exceeds limit: %d", len(cmd))
 	}
@@ -31,26 +31,26 @@ func NewHeader(network uint32, cmd string, payloadSize uint32, checksum [4]byte)
 	var command [CommandSize]byte
 	copy(command[:], cmd)
 
-	return &Header{
+	return &header{
 		Magic:       network,
 		Command:     command,
-		PayloadSize: payloadSize,
-		Checksum:    checksum,
+		PayloadSize: uint32(len(payload)),
+		Checksum:    common.PayloadHash(payload),
 	}, nil
 }
 
-// Encode encodes the header message
-func (h *Header) Encode(w io.Writer) error {
+// encode encodes the header message
+func (h *header) encode(w io.Writer) error {
 	return EncodeData(w, h.Magic, h.Command, h.PayloadSize, h.Checksum)
 }
 
-// Decode decodes the header message
-func (h *Header) Decode(r io.Reader) error {
+// decode decodes the header message
+func (h *header) decode(r io.Reader) error {
 	return DecodeData(r, &h.Magic, &h.Command, &h.PayloadSize, &h.Checksum)
 }
 
-// Validate validates the header message
-func (h *Header) Validate() error {
+// validate validates the header message
+func (h *header) validate() error {
 	// right now we only support regtest network
 	if h.Magic != common.Regtest {
 		return fmt.Errorf("unsupported network: %d", h.Magic)

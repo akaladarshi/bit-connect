@@ -8,68 +8,88 @@ import (
 
 	"github.com/akaladarshi/bit-connect/common"
 	"github.com/akaladarshi/bit-connect/configs"
-	msgs "github.com/akaladarshi/bit-connect/messages"
+	"github.com/akaladarshi/bit-connect/message"
 )
 
+// HandshakeHandler represents a handshake handler
 type HandshakeHandler struct {
 	cfg *configs.HandshakeConfig
 }
 
+// NewHandshakeHandler creates a new handshake handler
 func NewHandshakeHandler(cfg *configs.HandshakeConfig) Handler {
 	return &HandshakeHandler{
 		cfg: cfg,
 	}
 }
 
+/*
+	Handshake protocol:
+	local peer (L) -> remote peer (R)
+	L -> R: Send version message with the local peer's version
+	R -> L: Send version message back
+	R -> L: Send sendaddrv2 message (only if the protocol version is 70016)
+	R -> L: Send verack message
+	L -> R: Send verack message after receiving version message from R
+*/
+// Handle handles the handshake
 func (h *HandshakeHandler) Handle(rw net.Conn) error {
-	msg, err := msgs.CreateHandshakeMsg(h.cfg)
+	versionMsg, err := message.NewVersionMsg(h.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create handshake message: %w", err)
 	}
 
-	err = sendMessage(rw, msg)
+	// initiate the handshake by sending the version message to the peer
+	err = sendMessage(rw, versionMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send handshake message: %w", err)
 	}
 
-	err = h.readConn(rw)
+	// read the message sent by the peer in response to the version message
+	err = h.readMessages(rw)
 	if err != nil {
 		return fmt.Errorf("failed to read handshake message: %w", err)
 	}
 
-	versionAckMsg := msgs.NewVersionAckMsg(common.Regtest)
+	// send the version ack message to the peer
+	versionAckMsg := message.NewVersionAckMsg(common.Regtest)
 	err = sendMessage(rw, versionAckMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send version ack message: %w", err)
 	}
 
+	// TODO: add logging
 	fmt.Println("Handshake successful")
 
 	return nil
 }
 
-func (h *HandshakeHandler) readConn(r io.Reader) error {
-	msg := msgs.BitCoinMsg{}
+func (h *HandshakeHandler) readMessages(r io.Reader) error {
+	msg := message.BitcoinMsg{}
 	err := msg.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode bitcoin msg: %w", err)
 	}
 
-	handshakeMsg := msgs.HandshakeMsg{}
+	// decode the message payload
+	handshakeMsg := message.Version{}
 	err = handshakeMsg.Decode(bytes.NewReader(msg.GetPayload()))
 	if err != nil {
 		return fmt.Errorf("failed to decode handshake msg: %w", err)
 	}
 
+	// only decode the addr v2 message if the protocol version is the latest (70016)
+	// node before 70016 does not send addr v2 message
 	if handshakeMsg.ProtocolVersion == common.LatestProtocolVersion {
-		sendV2 := msgs.SendAddrV2Msg{}
+		sendV2 := message.SendAddrV2Msg{}
 		err = sendV2.Decode(r)
 		if err != nil {
 			return fmt.Errorf("failed to decode send addr v2 msg: %w", err)
 		}
 	}
 
-	versionAck := msgs.VersionAckMsg{}
+	// decode the version ack message
+	versionAck := message.VersionAckMsg{}
 	err = versionAck.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode version ack msg: %w", err)
@@ -78,21 +98,14 @@ func (h *HandshakeHandler) readConn(r io.Reader) error {
 	return nil
 }
 
-func sendMessage(w io.Writer, msg msgs.Message) error {
-	var buff bytes.Buffer
-	err := msg.Encode(&buff)
+func sendMessage(w io.Writer, msg message.Message) error {
+	bitcoinMsg, err := message.NewBitCoinMsg(msg)
 	if err != nil {
-		return fmt.Errorf("failed to encode message: %w", err)
+		return fmt.Errorf("failed to encode bitcoin message: %w", err)
 	}
 
-	payload := buff.Bytes()
-
-	headerMsg, err := msgs.NewHeader(common.Regtest, msg.GetCommand(), uint32(len(payload)), [4]byte(common.PayloadHash(payload)))
-	if err != nil {
-		return fmt.Errorf("failed to create header message: %w", err)
-	}
-
-	err = msgs.NewBitCoinMsg(headerMsg, payload).Encode(w)
+	// encode and write the message to the writer
+	err = bitcoinMsg.Encode(w)
 	if err != nil {
 		return fmt.Errorf("failed to encode bitcoin message: %w", err)
 	}

@@ -1,4 +1,4 @@
-package messages
+package message
 
 import (
 	"bytes"
@@ -8,33 +8,53 @@ import (
 	"github.com/akaladarshi/bit-connect/common"
 )
 
-// BitCoinMsg represents a bitcoin message
-// TODO: replace payload with Message interface
-type BitCoinMsg struct {
-	header  *Header
+// BitcoinMsg represents a bitcoin message
+type BitcoinMsg struct {
+	header  *header
 	payload []byte
 }
 
-func NewBitCoinMsg(header *Header, payload []byte) *BitCoinMsg {
-	return &BitCoinMsg{
-		header:  header,
-		payload: payload,
+// NewBitCoinMsg creates a new bitcoin message
+func NewBitCoinMsg(msg Message) (Message, error) {
+	var buff bytes.Buffer
+	err := msg.Encode(&buff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode message: %w", err)
 	}
+
+	payload := buff.Bytes()
+
+	head, err := newHeader(common.Regtest, msg.GetCommand(), payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create header message: %w", err)
+	}
+
+	err = head.validate()
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate header: %w", err)
+	}
+
+	return &BitcoinMsg{
+		header:  head,
+		payload: payload,
+	}, nil
 }
 
-func (m *BitCoinMsg) Encode(w io.Writer) error {
+// Encode encodes the bitcoin message
+func (m *BitcoinMsg) Encode(w io.Writer) error {
 	var headerBuffer = bytes.NewBuffer(make([]byte, 0, MaxHeaderSize))
-
-	err := m.header.Encode(headerBuffer)
+	err := m.header.encode(headerBuffer)
 	if err != nil {
 		return fmt.Errorf("failed to encode header: %w", err)
 	}
 
+	// write the header to the writer
 	_, err = w.Write(headerBuffer.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 
+	// write the payload to the writer
 	_, err = w.Write(m.payload)
 	if err != nil {
 		return fmt.Errorf("failed to write payload: %w", err)
@@ -43,19 +63,18 @@ func (m *BitCoinMsg) Encode(w io.Writer) error {
 	return nil
 }
 
-func (m *BitCoinMsg) Decode(r io.Reader) error {
-	header := &Header{}
-	err := header.Decode(r)
+// Decode decodes the bitcoin message
+func (m *BitcoinMsg) Decode(r io.Reader) error {
+	m.header = &header{}
+	err := m.header.decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode header: %w", err)
 	}
 
-	err = header.Validate()
+	err = m.header.validate()
 	if err != nil {
 		return fmt.Errorf("failed to validate header: %w", err)
 	}
-
-	m.header = header
 
 	payload := make([]byte, m.header.PayloadSize)
 	_, err = io.ReadFull(r, payload)
@@ -65,7 +84,7 @@ func (m *BitCoinMsg) Decode(r io.Reader) error {
 
 	checksum := common.PayloadHash(payload)
 	// checksum is the first 4 bytes of the hash
-	if !bytes.Equal(checksum[:][0:4], m.header.Checksum[:]) {
+	if !bytes.Equal(checksum[:], m.header.Checksum[:]) {
 		return fmt.Errorf("invalid checksum: expected %x, got %x", m.header.Checksum, checksum)
 	}
 
@@ -74,11 +93,11 @@ func (m *BitCoinMsg) Decode(r io.Reader) error {
 }
 
 // GetCommand returns the command of the message in string format
-func (m *BitCoinMsg) GetCommand() string {
+func (m *BitcoinMsg) GetCommand() string {
 	return string(bytes.TrimRight(m.header.Command[:], "\x00"))
 }
 
 // GetPayload returns the payload of the message
-func (m *BitCoinMsg) GetPayload() []byte {
+func (m *BitcoinMsg) GetPayload() []byte {
 	return m.payload
 }

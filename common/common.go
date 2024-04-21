@@ -8,8 +8,10 @@ const (
 )
 
 // PayloadHash calculates the double hash of the payload.
-func PayloadHash(payload []byte) []byte {
+// we only require the first 4 bytes of the hash for the checksum
+// ignoring the rest of the hash
+func PayloadHash(payload []byte) [4]byte {
 	firstHash := sha256.Sum256(payload)
 	secondHash := sha256.Sum256(firstHash[:])
-	return secondHash[:]
+	return [4]byte(secondHash[:])
 }

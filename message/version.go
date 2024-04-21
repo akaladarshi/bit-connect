@@ -1,4 +1,4 @@
-package messages
+package message
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ const (
 	defaultAgent      = ""
 )
 
-type HandshakeMsg struct {
+type Version struct {
 	ProtocolVersion int32
 	Services        uint64
 	Timestamp       int64
@@ -29,8 +29,8 @@ type HandshakeMsg struct {
 	Relay           bool // we can remove this field as it is not used.
 }
 
-// CreateHandshakeMsg creates a new version message
-func CreateHandshakeMsg(cfg *configs.HandshakeConfig) (Message, error) {
+// NewVersionMsg creates a new version message
+func NewVersionMsg(cfg *configs.HandshakeConfig) (Message, error) {
 	addrRecv, err := NewNetAddr(fullNodeServices, cfg.ReceiverAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create receiver net address: %w", err)
@@ -41,7 +41,7 @@ func CreateHandshakeMsg(cfg *configs.HandshakeConfig) (Message, error) {
 		return nil, fmt.Errorf("failed to create sender net address: %w", err)
 	}
 
-	return &HandshakeMsg{
+	return &Version{
 		ProtocolVersion: common.LatestProtocolVersion,
 		Services:        fullNodeServices,
 		Timestamp:       time.Unix(time.Now().Unix(), 0).Unix(),
@@ -54,7 +54,7 @@ func CreateHandshakeMsg(cfg *configs.HandshakeConfig) (Message, error) {
 	}, nil
 }
 
-func (h *HandshakeMsg) Encode(w io.Writer) error {
+func (h *Version) Encode(w io.Writer) error {
 	err := EncodeData(w, h.ProtocolVersion, h.Services, h.Timestamp)
 	if err != nil {
 		return err
@@ -78,31 +78,27 @@ func (h *HandshakeMsg) Encode(w io.Writer) error {
 	return nil
 }
 
-func (h *HandshakeMsg) Decode(r io.Reader) error {
+func (h *Version) Decode(r io.Reader) error {
 	err := DecodeData(r, &h.ProtocolVersion, &h.Services, &h.Timestamp)
 	if err != nil {
 		return err
 	}
 
-	senderAddr := &NetAddr{}
-	err = senderAddr.Decode(r)
+	h.AddrFrom = NetAddr{}
+	err = h.AddrFrom.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode sender address: %w", err)
 	}
 
-	h.AddrFrom = *senderAddr
-
-	receiverAddr := &NetAddr{}
-	err = receiverAddr.Decode(r)
+	h.AddrRecv = NetAddr{}
+	err = h.AddrRecv.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode receiver address: %w", err)
 	}
 
-	h.AddrRecv = *receiverAddr
-
 	return DecodeData(r, &h.Nonce, &h.UserAgent, &h.LastHeight, &h.Relay)
 }
 
-func (h *HandshakeMsg) GetCommand() string {
+func (h *Version) GetCommand() string {
 	return version
 }

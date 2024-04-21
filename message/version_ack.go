@@ -1,4 +1,4 @@
-package messages
+package message
 
 import (
 	"io"
@@ -7,7 +7,7 @@ import (
 const versionACK = "verack"
 
 type VersionAckMsg struct {
-	header *Header
+	header *header
 }
 
 // NewVersionAckMsg creates a new version ack message
@@ -16,26 +16,22 @@ func NewVersionAckMsg(network uint32) *VersionAckMsg {
 	copy(command[:], versionACK)
 
 	return &VersionAckMsg{
-		header: &Header{
+		header: &header{
 			Magic:   network,
 			Command: command,
 		},
 	}
 }
 
+// Encode encodes the version ack message
 func (v *VersionAckMsg) Encode(w io.Writer) error {
 	return nil
 }
 
+// Decode decodes the version ack message
 func (v *VersionAckMsg) Decode(r io.Reader) error {
-	header := &Header{}
-	err := DecodeData(r, &header.Magic, &header.Command)
-	if err != nil {
-		return err
-	}
-
-	v.header = header
-	return nil
+	v.header = &header{}
+	return DecodeData(r, &v.header.Magic, &v.header.Command)
 }
 
 func (v *VersionAckMsg) GetCommand() string {

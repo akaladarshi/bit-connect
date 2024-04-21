@@ -1,4 +1,4 @@
-package messages
+package message
 
 import (
 	"encoding/binary"
@@ -10,7 +10,7 @@ import (
 // read more: https://en.bitcoin.it/wiki/Protocol_documentation#Network_address
 type NetAddr struct {
 	Services uint64   // same as services in the version message
-	IP       [16]byte // only supports IPV4 in IPv6 format
+	IP       [16]byte // only supports IPV4 in IPv6 format (16 bytes)
 	Port     uint16   // port number
 }
 

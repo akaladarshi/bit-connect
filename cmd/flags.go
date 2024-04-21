@@ -1,5 +1,3 @@
 package cmd
 
-const (
-	nodeAddressFlag = "node-address"
-)
+const nodeAddressFlag = "node-address"
