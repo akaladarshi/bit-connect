@@ -13,13 +13,13 @@ type HandshakeConfig struct {
 	ReceiverAddress string
 }
 
-func NewHandshakeConfig(senderAddress, receiverAddress string) (*HandshakeConfig, error) {
-	if senderAddress == "" || receiverAddress == "" {
+func NewHandshakeConfig(localAddress, remotePeerAddress string) (*HandshakeConfig, error) {
+	if localAddress == "" || remotePeerAddress == "" {
 		return nil, ErrInvalidHandshakeConfig
 	}
 
 	return &HandshakeConfig{
-		SenderAddress:   senderAddress,
-		ReceiverAddress: receiverAddress,
+		SenderAddress:   localAddress,
+		ReceiverAddress: remotePeerAddress,
 	}, nil
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/akaladarshi/bit-connect/common"
-	"github.com/akaladarshi/bit-connect/configs"
 )
 
 const (
@@ -17,6 +16,7 @@ const (
 	defaultAgent      = ""
 )
 
+// Version represents a version message
 type Version struct {
 	ProtocolVersion int32
 	Services        uint64
@@ -30,13 +30,13 @@ type Version struct {
 }
 
 // NewVersionMsg creates a new version message
-func NewVersionMsg(cfg *configs.HandshakeConfig) (Message, error) {
-	addrRecv, err := NewNetAddr(fullNodeServices, cfg.ReceiverAddress)
+func NewVersionMsg(senderAddr string, receiverAddr string) (Message, error) {
+	addrRecv, err := NewNetAddr(fullNodeServices, receiverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create receiver net address: %w", err)
 	}
 
-	addrSender, err := NewNetAddr(fullNodeServices, cfg.SenderAddress)
+	addrSender, err := NewNetAddr(fullNodeServices, senderAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sender net address: %w", err)
 	}
@@ -54,23 +54,24 @@ func NewVersionMsg(cfg *configs.HandshakeConfig) (Message, error) {
 	}, nil
 }
 
-func (h *Version) Encode(w io.Writer) error {
-	err := EncodeData(w, h.ProtocolVersion, h.Services, h.Timestamp)
+// Encode encodes the version message
+func (v *Version) Encode(w io.Writer) error {
+	err := EncodeData(w, v.ProtocolVersion, v.Services, v.Timestamp)
 	if err != nil {
 		return err
 	}
 
-	err = h.AddrRecv.Encode(w)
+	err = v.AddrRecv.Encode(w)
 	if err != nil {
 		return fmt.Errorf("failed to encode receiver address: %w", err)
 	}
 
-	err = h.AddrFrom.Encode(w)
+	err = v.AddrFrom.Encode(w)
 	if err != nil {
 		return fmt.Errorf("failed to encode sender address: %w", err)
 	}
 
-	err = EncodeData(w, h.Nonce, h.UserAgent, h.LastHeight, h.Relay)
+	err = EncodeData(w, v.Nonce, v.UserAgent, v.LastHeight, v.Relay)
 	if err != nil {
 		return err
 	}
@@ -78,27 +79,29 @@ func (h *Version) Encode(w io.Writer) error {
 	return nil
 }
 
-func (h *Version) Decode(r io.Reader) error {
-	err := DecodeData(r, &h.ProtocolVersion, &h.Services, &h.Timestamp)
+// Decode decodes the version message
+func (v *Version) Decode(r io.Reader) error {
+	err := DecodeData(r, &v.ProtocolVersion, &v.Services, &v.Timestamp)
 	if err != nil {
 		return err
 	}
 
-	h.AddrFrom = NetAddr{}
-	err = h.AddrFrom.Decode(r)
+	v.AddrFrom = NetAddr{}
+	err = v.AddrFrom.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode sender address: %w", err)
 	}
 
-	h.AddrRecv = NetAddr{}
-	err = h.AddrRecv.Decode(r)
+	v.AddrRecv = NetAddr{}
+	err = v.AddrRecv.Decode(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode receiver address: %w", err)
 	}
 
-	return DecodeData(r, &h.Nonce, &h.UserAgent, &h.LastHeight, &h.Relay)
+	return DecodeData(r, &v.Nonce, &v.UserAgent, &v.LastHeight, &v.Relay)
 }
 
-func (h *Version) GetCommand() string {
+// GetCommand returns the version message command
+func (v *Version) GetCommand() string {
 	return version
 }

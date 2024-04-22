@@ -9,6 +9,7 @@ import (
 )
 
 // BitcoinMsg represents a bitcoin message
+// All the message types will be converted to BitcoinMsg before sending them to the network
 type BitcoinMsg struct {
 	header  *header
 	payload []byte
@@ -19,11 +20,10 @@ func NewBitCoinMsg(msg Message) (Message, error) {
 	var buff bytes.Buffer
 	err := msg.Encode(&buff)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode message: %w", err)
+		return nil, fmt.Errorf("failed to encode message: %T :%w", msg, err)
 	}
 
 	payload := buff.Bytes()
-
 	head, err := newHeader(common.Regtest, msg.GetCommand(), payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create header message: %w", err)
@@ -97,7 +97,17 @@ func (m *BitcoinMsg) GetCommand() string {
 	return string(bytes.TrimRight(m.header.Command[:], "\x00"))
 }
 
-// GetPayload returns the payload of the message
-func (m *BitcoinMsg) GetPayload() []byte {
-	return m.payload
+func (m *BitcoinMsg) LoadAndVerifyOriginalMsg(msg Message) error {
+	// decode the message payload
+	err := msg.Decode(bytes.NewReader(m.payload))
+	if err != nil {
+		return fmt.Errorf("failed to decode handshake msg: %w", err)
+	}
+
+	// check if we received the correct message
+	if m.GetCommand() != msg.GetCommand() {
+		return fmt.Errorf("invalid command: expected %s, got %s", msg.GetCommand(), m.GetCommand())
+	}
+
+	return nil
 }
